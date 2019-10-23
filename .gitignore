@@ -1,0 +1,9 @@
+.idea/
+.vscode/
+build/
+core
+dist/
+pyMETRIC.egg-info/
+pyMETRIC/__pycache__/
+notebooks/
+
