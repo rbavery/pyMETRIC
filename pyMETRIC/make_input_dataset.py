@@ -33,15 +33,15 @@ def get_lat_lon_arrs(da):
     return list(zip(lons, lats))
 
 os.chdir("/home/rave/CropMask_RCNN/notebooks")
-
+chunks = {'x':1000, 'y':1000}
 # test vars
-Tr_K = xar.open_rasterio("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_ST/LT05_CU_012006_20020825_20190517_C01_V01_ST.tif", chunks = {'x':500, 'y':500})    .squeeze()
-L_dn = xar.open_rasterio("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_ST/LT05_CU_012006_20020825_20190517_C01_V01_DRAD.tif", chunks = {'x':500, 'y':500})    .squeeze()
-emis = xar.open_rasterio("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_ST/LT05_CU_012006_20020825_20190517_C01_V01_EMIS.tif", chunks = {'x':500, 'y':500})    .squeeze()
+Tr_K = xar.open_rasterio("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_ST/LT05_CU_012006_20020825_20190517_C01_V01_ST.tif", chunks = chunks)    .squeeze()
+L_dn = xar.open_rasterio("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_ST/LT05_CU_012006_20020825_20190517_C01_V01_DRAD.tif", chunks = chunks)    .squeeze()
+emis = xar.open_rasterio("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_ST/LT05_CU_012006_20020825_20190517_C01_V01_EMIS.tif", chunks = chunks)    .squeeze()
 
 band_paths = list(Path("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_SR/").glob("*B*.tif")) # grab, sort and read in bands as xarr
 band_paths = sorted(band_paths)
-SR = io_utils.read_bands_lsr(band_paths)
+SR = io_utils.read_bands_lsr(band_paths, chunks=chunks)
 SR = SR.transpose('y', 'x', 'band')
 
 center = get_lat_lon_center(Tr_K)
@@ -265,9 +265,9 @@ Tr_datum = Tr_K + gamma_w * alt
 Ta_datum = T_A_K + gamma_w * alt
 
 cv_ndvi, _, _ = endmember_search.moving_cv_filter(VI, (11, 11))
-cv_lst, _, std_lst = endmember_search.moving_cv_filter(Tr_datum, (11, 11))
-cv_albedo,_, _ = endmember_search.moving_cv_filter(albedo, (11, 11))
-
+_, _, std_lst = endmember_search.moving_cv_filter(Tr_datum, (11, 11))
+cv_albedo, _, _ = endmember_search.moving_cv_filter(albedo, (11, 11))
+del _
 cold_pixel, hot_pixel = endmember_search.esa(VI,
                                 Tr_datum,
                                 cv_ndvi,

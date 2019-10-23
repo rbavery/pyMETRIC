@@ -190,17 +190,18 @@ def esa(vi_array,
                                                        lst_array)
 
     print('Removing outliers by histogram')
-    mask = np.logical_and.reduce((homogeneous,
+    #converting to np array instead of tuple of np arrays and dask arrays solved hanging problem.
+    mask = np.logical_and.reduce(np.array((homogeneous,
                                       lst_array >= lst_min,
                                       lst_array <= lst_max,
                                       vi_array >= vi_min,
-                                      vi_array <= vi_max))
-    
+                                      vi_array <= vi_max)))
+
     print('Keep %s pixels after outlier removal'%np.sum(mask))
     if np.sum(mask) == 0:
         return None, None
 
-    # Step 3. Interative search of cold pixel
+    # Step 3. Iterative search of cold pixel
     print('Iterative search of candidate cold pixels')
     cold_pixels = incremental_search(vi_array, lst_array, mask, is_cold = True)
     print('Found %s candidate cold pixels'%np.sum(cold_pixels))
@@ -242,7 +243,7 @@ def histogram_filter(vi_array, lst_array):
     hot_bin_pixels = 0
     bare_bin_pixels = 0
     full_bin_pixels = 0
-    
+
     while (cold_bin_pixels < 50 
             or hot_bin_pixels <50 
             or bare_bin_pixels < 50
@@ -259,7 +260,7 @@ def histogram_filter(vi_array, lst_array):
         
         print('Setting VI boundaries %s - %s'%(min_vi, max_vi))
         n_bins = int(np.ceil((max_vi - min_vi) / 0.01))
-        vi_hist, vi_edges = np.histogram(vi_array, n_bins, range = (min_lst, max_lst))
+        vi_hist, vi_edges = np.histogram(vi_array, n_bins, range = (min_vi, max_vi))
 
         # Get number of elements in the minimum and maximum bin
         cold_bin_pixels = lst_hist[0]
