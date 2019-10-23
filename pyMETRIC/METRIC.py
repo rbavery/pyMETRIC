@@ -123,7 +123,7 @@ def METRIC(Tr_K,
     '''
 
     # Convert input scalars to numpy arrays and check parameters size
-    Tr_K = np.asarray(Tr_K)
+    Tr_K = Tr_K
     (T_A_K,
      u,
      ea,
@@ -167,8 +167,8 @@ def METRIC(Tr_K,
         max_iterations = 1  # No iteration
 
     if isinstance(UseDEM, bool):
-        Tr_datum = np.asarray(Tr_K)
-        Ta_datum = np.asarray(T_A_K)
+        Tr_datum = Tr_K
+        Ta_datum = T_A_K
     else:
         gamma_w = met.calc_lapse_rate_moist(T_A_K, ea, p)
         Tr_datum = Tr_K + gamma_w * UseDEM
@@ -187,7 +187,7 @@ def METRIC(Tr_K,
 
     # Calculate Net radiation
     Ln = emis * L_dn - emis * met.calc_stephan_boltzmann(Tr_K)
-    Rn = np.asarray(Sn + Ln)
+    Rn = Sn + Ln
 
     # Compute Soil Heat Flux
     i = np.ones(Rn.shape, dtype=bool)
@@ -276,7 +276,7 @@ def METRIC(Tr_K,
 # ==============================================================================
     # Initially assume stable atmospheric conditions and set variables for
     L_queue = deque([np.ones(dT.shape)], 6)
-    L_converged = np.asarray(np.zeros(Tr_K.shape)).astype(bool)
+    L_converged = np.zeros(Tr_K.shape).astype(bool)
     L_diff_max = np.inf
     i = np.ones(dT.shape, dtype=bool)
     start_time = time.time()
@@ -320,7 +320,7 @@ def METRIC(Tr_K,
             L[i] = MO.calc_L(u_friction[i], T_A_K[i], rho[i], c_p[i], H[i], LE[i])
 
             u_friction[i] = MO.calc_u_star(u[i], z_u[i], L[i], d_0[i], z_0M[i])
-            u_friction[i] = np.asarray(np.maximum(u_friction_min, u_friction[i]))
+            u_friction[i] = np.maximum(u_friction_min, u_friction[i])
             
             # We check convergence against the value of L from previous iteration but as well
             # against values from 2 or 3 iterations back. This is to catch situations (not
@@ -341,14 +341,11 @@ def METRIC(Tr_K,
                                                         _L_diff(L_queue[1][i], L_queue[4][i]) < L_thres,
                                                         _L_diff(L_queue[2][i], L_queue[5][i]) < L_thres))
 
-    flag, Ln, LE, H, G, R_A, u_friction, L, iterations = map(
-        np.asarray, (flag, Ln, LE, H, G, R_A, u_friction, L, iterations))
-
     return flag, Ln, LE, H, G, R_A, u_friction, L, iterations
 
 
 def _L_diff(L, L_old):
-    L_diff = np.asarray(np.fabs(L - L_old) / np.fabs(L_old))
+    L_diff = np.fabs(L - L_old) / np.fabs(L_old)
     L_diff[np.isnan(L_diff)] = float('inf')
     return L_diff
 

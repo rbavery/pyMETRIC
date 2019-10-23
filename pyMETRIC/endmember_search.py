@@ -186,8 +186,8 @@ def esa(vi_array,
         return None, None
     
     # Step 2 Filter outliers by Building ndvi and lst histograms
-    lst_min, lst_max, vi_min, vi_max = histogram_fiter(vi_array[~vi_nan],
-                                                       lst_array[~lst_nan])    
+    lst_min, lst_max, vi_min, vi_max = histogram_filter(vi_array,
+                                                       lst_array)
 
     print('Removing outliers by histogram')
     mask = np.logical_and.reduce((homogeneous,
@@ -237,7 +237,7 @@ def esa(vi_array,
     return cold_pixel, hot_pixel
 
 
-def histogram_fiter(vi_array, lst_array):
+def histogram_filter(vi_array, lst_array):
     cold_bin_pixels = 0
     hot_bin_pixels = 0
     bare_bin_pixels = 0
@@ -248,18 +248,18 @@ def histogram_fiter(vi_array, lst_array):
             or bare_bin_pixels < 50
             or full_bin_pixels < 50):
 
-        max_lst = np.amax(lst_array)
-        min_lst = np.amin(lst_array)
-        max_vi = np.amax(vi_array)
-        min_vi = np.amin(vi_array)
+        max_lst = np.nanmax(lst_array)
+        min_lst = np.nanmin(lst_array)
+        max_vi = np.nanmax(vi_array)
+        min_vi = np.nanmin(vi_array)
         
         print('Setting LST boundaries %s - %s'%(min_lst, max_lst))
         n_bins = int(np.ceil((max_lst - min_lst) / 0.25))
-        lst_hist, lst_edges = np.histogram(lst_array, n_bins)
+        lst_hist, lst_edges = np.histogram(lst_array, n_bins, range = (min_lst, max_lst))
         
         print('Setting VI boundaries %s - %s'%(min_vi, max_vi))
         n_bins = int(np.ceil((max_vi - min_vi) / 0.01))
-        vi_hist, vi_edges = np.histogram(vi_array, n_bins)
+        vi_hist, vi_edges = np.histogram(vi_array, n_bins, range = (min_lst, max_lst))
 
         # Get number of elements in the minimum and maximum bin
         cold_bin_pixels = lst_hist[0]
@@ -269,16 +269,16 @@ def histogram_fiter(vi_array, lst_array):
 
         # Remove possible outliers
         if cold_bin_pixels < 50:
-            lst_array = lst_array[lst_array >= lst_edges[1]]     
+            lst_array = lst_array.where(lst_array >= lst_edges[1])
 
         if hot_bin_pixels < 50:
-            lst_array = lst_array[lst_array <= lst_edges[-2]]     
+            lst_array = lst_array.where(lst_array <= lst_edges[-2])
 
         if bare_bin_pixels < 50:
-            vi_array = vi_array[vi_array >= vi_edges[1]]     
+            vi_array = vi_array.where(vi_array >= vi_edges[1])
 
         if full_bin_pixels < 50:
-            vi_array = vi_array[vi_array <= vi_edges[-2]]     
+            vi_array = vi_array.where(vi_array <= vi_edges[-2])
 
     return lst_edges[0], lst_edges[-1], vi_edges[0], vi_edges[-1]
 
@@ -333,7 +333,7 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
 def moving_cv_filter(data, window):
     
     ''' window is a 2 element tuple with the moving window dimensions (rows, columns)'''
-    kernel = np.ones(window)/np.prod(np.asarray(window))
+    kernel = np.ones(window)/np.prod(window)
     mean = convolve2d(data, kernel, mode = 'same', boundary = 'symm')
     
     distance = (data - mean)**2
