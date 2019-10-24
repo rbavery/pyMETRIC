@@ -26,13 +26,12 @@ def get_lat_lon_arrs(da):
     Gets the lon, lat coordinates by reprojecting to WGS84, in list of tuple form.
     """
     xs, ys = rio.transform.xy(Affine(*da.attrs['transform']), rows=np.arange(da.sizes['y']), cols=np.arange(da.sizes['x']), offset='center')
-    lon_lat_arrs = []
     outProj = pyproj.Proj(init='epsg:4326')
     inProj = pyproj.Proj(da.attrs['crs'])
     lons, lats = pyproj.transform(inProj,outProj,xs, ys)
     return list(zip(lons, lats))
 
-os.chdir("/home/rave/CropMask_RCNN/notebooks")
+os.chdir("/mnt/cropmaskperm/")
 chunks = {'x':1000, 'y':1000}
 # test vars
 Tr_K = xar.open_rasterio("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_ST/LT05_CU_012006_20020825_20190517_C01_V01_ST.tif", chunks = chunks)    .squeeze()

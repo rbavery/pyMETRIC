@@ -6,4 +6,6 @@ dist/
 pyMETRIC.egg-info/
 pyMETRIC/__pycache__/
 notebooks/
+pip-wheel-metadata/
+pyMETRIC/.ipynb_checkpoints/
 

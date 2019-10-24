@@ -192,10 +192,10 @@ def esa(vi_array,
     print('Removing outliers by histogram')
     #converting to np array instead of tuple of np arrays and dask arrays solved hanging problem.
     mask = np.logical_and.reduce(np.array((homogeneous,
-                                      lst_array >= lst_min,
-                                      lst_array <= lst_max,
-                                      vi_array >= vi_min,
-                                      vi_array <= vi_max)))
+                                      lst_array.compute() >= lst_min,
+                                      lst_array.compute() <= lst_max,
+                                      vi_array.compute() >= vi_min,
+                                      vi_array.compute() <= vi_max)))
 
     print('Keep %s pixels after outlier removal'%np.sum(mask))
     if np.sum(mask) == 0:
