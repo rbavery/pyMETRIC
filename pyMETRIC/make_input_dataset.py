@@ -31,7 +31,7 @@ def get_lat_lon_arrs(da):
     lons, lats = pyproj.transform(inProj,outProj,xs, ys)
     return list(zip(lons, lats))
 
-os.chdir("/mnt/cropmaskperm/")
+os.chdir("/home/rave/CropMask_RCNN/notebooks/")
 chunks = {'x':1000, 'y':1000}
 # test vars
 Tr_K = xar.open_rasterio("test_metric/LT05_CU_012006_20020825_20190517_C01_V01_ST/LT05_CU_012006_20020825_20190517_C01_V01_ST.tif", chunks = chunks)    .squeeze()

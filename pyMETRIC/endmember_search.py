@@ -192,10 +192,10 @@ def esa(vi_array,
     print('Removing outliers by histogram')
     #converting to np array instead of tuple of np arrays and dask arrays solved hanging problem.
     mask = np.logical_and.reduce(np.array((homogeneous,
-                                      lst_array.compute() >= lst_min,
-                                      lst_array.compute() <= lst_max,
-                                      vi_array.compute() >= vi_min,
-                                      vi_array.compute() <= vi_max)))
+                                      np.asarray(lst_array) >= lst_min,
+                                      np.asarray(lst_array) <= lst_max,
+                                      np.asarray(vi_array) >= vi_min,
+                                      np.asarray(vi_array) <= vi_max)))
 
     print('Keep %s pixels after outlier removal'%np.sum(mask))
     if np.sum(mask) == 0:
@@ -298,11 +298,11 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             for n_lst in range(1, 11 + step):
                 for n_vi in range(1, 11 + step):
                     print('Searching cold pixels from the %s %% minimum LST and %s %% maximum VI'%(n_lst, n_vi))
-                    vi_high = np.percentile(vi_array[mask], 100 - n_vi)
-                    lst_cold = np.percentile(lst_array[mask], n_lst)
+                    vi_high = np.percentile(vi_array.where(mask), 100 - n_vi)
+                    lst_cold = np.percentile(lst_array.where(mask), n_lst)
                     cold_index = np.logical_and.reduce((mask,
-                                                         vi_array >= vi_high,
-                                                         lst_array <= lst_cold))
+                                                         np.asarray(vi_array) >= vi_high,
+                                                        np.asarray(lst_array) <= lst_cold))
                      
                     if np.sum(cold_index) >= 10:
                         return cold_index
@@ -317,11 +317,11 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             for n_lst in range(1,11 + step):
                 for n_vi in range(1,11 + step):
                     print('Searching hot pixels from the %s %% maximum LST and %s %% minimum VI'%(n_lst, n_vi))
-                    vi_low = np.percentile(vi_array[mask], n_vi)
-                    lst_hot = np.percentile(lst_array[mask], 100 - n_lst)
+                    vi_low = np.percentile(vi_array.where(mask), n_vi)
+                    lst_hot = np.percentile(lst_array.where(mask), 100 - n_lst)
                     hot_index = np.logical_and.reduce((mask,
-                                                        vi_array <= vi_low,
-                                                        lst_array >= lst_hot))
+                                                        np.asarray(vi_array) <= vi_low,
+                                                        np.asarray(lst_array) >= lst_hot))
                      
                     if np.sum(hot_index) >= 10:
                         return hot_index
