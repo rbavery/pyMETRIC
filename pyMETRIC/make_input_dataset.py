@@ -262,16 +262,18 @@ gamma_w = met.calc_lapse_rate_moist(Tr_K,
 
 Tr_datum = Tr_K + gamma_w * alt
 Ta_datum = T_A_K + gamma_w * alt
-
-cv_ndvi, _, _ = endmember_search.moving_cv_filter(VI, (11, 11))
-_, _, std_lst = endmember_search.moving_cv_filter(Tr_datum, (11, 11))
-cv_albedo, _, _ = endmember_search.moving_cv_filter(albedo, (11, 11))
+#.data to convert DataArrays to dAsk Arrays since ,ap_overblocks not yet supported in xarray
+cv_ndvi, _, _ = endmember_search.moving_cv_filter(VI.data, (11, 11))
+_, _, std_lst = endmember_search.moving_cv_filter(Tr_datum.data, (11, 11))
+cv_albedo, _, _ = endmember_search.moving_cv_filter(albedo.data, (11, 11))
 del _
-cold_pixel, hot_pixel = endmember_search.esa(VI,
-                                Tr_datum,
-                                cv_ndvi,
-                                std_lst,
-                                cv_albedo)
+# couldn't get logical_and.reduce to work with mix of numpy and dask arrays in endmember_search,
+# computation would hang and spin on one processor forever. converting all to numpy arrays
+cold_pixel, hot_pixel = endmember_search.esa(np.asarray(VI),
+                                np.asarray(Tr_datum),
+                                cv_ndvi.compute(),
+                                std_lst.compute(),
+                                cv_albedo.compute())
 
 from pyMETRIC.METRIC import pet_asce
 
@@ -289,14 +291,14 @@ LE_potential = pet_asce(Ta_datum,
 from pyMETRIC.METRIC import METRIC
 
         
-flag, R_nl1, LE1, H1, G1, R_A1, u_friction, L, n_iterations = METRIC(Tr_K,
+flag, R_nl1, LE1, H1, G1, R_A1, u_friction, L, n_iterations = METRIC(np.asarray(Tr_K),
                 T_A_K,
                 u,
                 ea,
                 p,
                 S_dn,
-                L_dn,
-                emis,
+                np.asarray(L_dn),
+                np.asarray(emis),
                 z_0M,
                 d_0,
                 z_u,

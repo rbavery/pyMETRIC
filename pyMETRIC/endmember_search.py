@@ -7,7 +7,7 @@ Created on Thu Jun 28 18:56:06 2018
 
 # import pyTVDI
 import numpy as np
-from scipy.signal import convolve2d
+from dask_image import ndfilters
 
 VI_SOIL = 0.0
 VI_FULL = 0.95
@@ -186,22 +186,21 @@ def esa(vi_array,
         return None, None
     
     # Step 2 Filter outliers by Building ndvi and lst histograms
-    lst_min, lst_max, vi_min, vi_max = histogram_filter(vi_array,
-                                                       lst_array)
+    lst_min, lst_max, vi_min, vi_max = histogram_fiter(vi_array[~vi_nan],
+                                                       lst_array[~lst_nan])    
 
     print('Removing outliers by histogram')
-    #converting to np array instead of tuple of np arrays and dask arrays solved hanging problem.
-    mask = np.logical_and.reduce(np.array((homogeneous,
-                                      np.asarray(lst_array) >= lst_min,
-                                      np.asarray(lst_array) <= lst_max,
-                                      np.asarray(vi_array) >= vi_min,
-                                      np.asarray(vi_array) <= vi_max)))
-
+    mask = np.logical_and.reduce((homogeneous,
+                                      lst_array >= lst_min,
+                                      lst_array <= lst_max,
+                                      vi_array >= vi_min,
+                                      vi_array <= vi_max))
+    
     print('Keep %s pixels after outlier removal'%np.sum(mask))
     if np.sum(mask) == 0:
         return None, None
 
-    # Step 3. Iterative search of cold pixel
+    # Step 3. Interative search of cold pixel
     print('Iterative search of candidate cold pixels')
     cold_pixels = incremental_search(vi_array, lst_array, mask, is_cold = True)
     print('Found %s candidate cold pixels'%np.sum(cold_pixels))
@@ -238,29 +237,29 @@ def esa(vi_array,
     return cold_pixel, hot_pixel
 
 
-def histogram_filter(vi_array, lst_array):
+def histogram_fiter(vi_array, lst_array):
     cold_bin_pixels = 0
     hot_bin_pixels = 0
     bare_bin_pixels = 0
     full_bin_pixels = 0
-
+    
     while (cold_bin_pixels < 50 
             or hot_bin_pixels <50 
             or bare_bin_pixels < 50
             or full_bin_pixels < 50):
 
-        max_lst = np.nanmax(lst_array)
-        min_lst = np.nanmin(lst_array)
-        max_vi = np.nanmax(vi_array)
-        min_vi = np.nanmin(vi_array)
+        max_lst = np.amax(lst_array)
+        min_lst = np.amin(lst_array)
+        max_vi = np.amax(vi_array)
+        min_vi = np.amin(vi_array)
         
         print('Setting LST boundaries %s - %s'%(min_lst, max_lst))
         n_bins = int(np.ceil((max_lst - min_lst) / 0.25))
-        lst_hist, lst_edges = np.histogram(lst_array, n_bins, range = (min_lst, max_lst))
+        lst_hist, lst_edges = np.histogram(lst_array, n_bins)
         
         print('Setting VI boundaries %s - %s'%(min_vi, max_vi))
         n_bins = int(np.ceil((max_vi - min_vi) / 0.01))
-        vi_hist, vi_edges = np.histogram(vi_array, n_bins, range = (min_vi, max_vi))
+        vi_hist, vi_edges = np.histogram(vi_array, n_bins)
 
         # Get number of elements in the minimum and maximum bin
         cold_bin_pixels = lst_hist[0]
@@ -270,16 +269,16 @@ def histogram_filter(vi_array, lst_array):
 
         # Remove possible outliers
         if cold_bin_pixels < 50:
-            lst_array = lst_array.where(lst_array >= lst_edges[1])
+            lst_array = lst_array[lst_array >= lst_edges[1]]     
 
         if hot_bin_pixels < 50:
-            lst_array = lst_array.where(lst_array <= lst_edges[-2])
+            lst_array = lst_array[lst_array <= lst_edges[-2]]     
 
         if bare_bin_pixels < 50:
-            vi_array = vi_array.where(vi_array >= vi_edges[1])
+            vi_array = vi_array[vi_array >= vi_edges[1]]     
 
         if full_bin_pixels < 50:
-            vi_array = vi_array.where(vi_array <= vi_edges[-2])
+            vi_array = vi_array[vi_array <= vi_edges[-2]]     
 
     return lst_edges[0], lst_edges[-1], vi_edges[0], vi_edges[-1]
 
@@ -298,11 +297,11 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             for n_lst in range(1, 11 + step):
                 for n_vi in range(1, 11 + step):
                     print('Searching cold pixels from the %s %% minimum LST and %s %% maximum VI'%(n_lst, n_vi))
-                    vi_high = np.percentile(vi_array.where(mask), 100 - n_vi)
-                    lst_cold = np.percentile(lst_array.where(mask), n_lst)
+                    vi_high = np.percentile(vi_array[mask], 100 - n_vi)
+                    lst_cold = np.percentile(lst_array[mask], n_lst)
                     cold_index = np.logical_and.reduce((mask,
-                                                         np.asarray(vi_array) >= vi_high,
-                                                        np.asarray(lst_array) <= lst_cold))
+                                                         vi_array >= vi_high,
+                                                         lst_array <= lst_cold))
                      
                     if np.sum(cold_index) >= 10:
                         return cold_index
@@ -317,11 +316,11 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             for n_lst in range(1,11 + step):
                 for n_vi in range(1,11 + step):
                     print('Searching hot pixels from the %s %% maximum LST and %s %% minimum VI'%(n_lst, n_vi))
-                    vi_low = np.percentile(vi_array.where(mask), n_vi)
-                    lst_hot = np.percentile(lst_array.where(mask), 100 - n_lst)
+                    vi_low = np.percentile(vi_array[mask], n_vi)
+                    lst_hot = np.percentile(lst_array[mask], 100 - n_lst)
                     hot_index = np.logical_and.reduce((mask,
-                                                        np.asarray(vi_array) <= vi_low,
-                                                        np.asarray(lst_array) >= lst_hot))
+                                                        vi_array <= vi_low,
+                                                        lst_array >= lst_hot))
                      
                     if np.sum(hot_index) >= 10:
                         return hot_index
@@ -332,16 +331,17 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
                 return []
 
 def moving_cv_filter(data, window):
-    
+
     ''' window is a 2 element tuple with the moving window dimensions (rows, columns)'''
     kernel = np.ones(window)/np.prod(window)
-    mean = convolve2d(data, kernel, mode = 'same', boundary = 'symm')
-    
+    mean = ndfilters.convolve(data, kernel, mode='reflect', origin=0)
+
     distance = (data - mean)**2
-    
-    std = np.sqrt(convolve2d(distance, kernel, mode = 'same', boundary = 'symm'))
-    
+
+    std = np.sqrt(ndfilters.convolve(distance, kernel, mode='reflect', origin=0))
+
     cv = std/mean
-    
+
     return cv, mean, std
+
 
