@@ -291,14 +291,14 @@ LE_potential = pet_asce(Ta_datum,
 from pyMETRIC.METRIC import METRIC
 
         
-flag, R_nl1, LE1, H1, G1, R_A1, u_friction, L, n_iterations = METRIC(np.asarray(Tr_K),
+flag, R_nl1, LE1, H1, G1, R_A1, u_friction, L, n_iterations = METRIC(Tr_K.data,
                 T_A_K,
                 u,
                 ea,
                 p,
                 S_dn,
-                np.asarray(L_dn),
-                np.asarray(emis),
+                L_dn.data,
+                emis.data,
                 z_0M,
                 d_0,
                 z_u,
@@ -309,4 +309,5 @@ flag, R_nl1, LE1, H1, G1, R_A1, u_friction, L, n_iterations = METRIC(np.asarray(
                 LE_hot=0,
                 use_METRIC_resistance = use_METRIC_resistance,
                 calcG_params=calcG_params,
-                UseDEM=UseDEM)
+                UseDEM=UseDEM,
+                chunks=(1000,1000))

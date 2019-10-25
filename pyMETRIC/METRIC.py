@@ -8,7 +8,7 @@ from collections import deque
 import time
 
 import numpy as np
-
+import dask.array as da
 import pyTSEB.meteo_utils as met
 import pyTSEB.resistances as res
 import pyTSEB.MO_similarity as MO
@@ -53,7 +53,8 @@ def METRIC(Tr_K,
            use_METRIC_resistance=True,
            calcG_params=[[1], 0.35],
            UseL=False,
-           UseDEM=False):
+           UseDEM=False,
+           chunks=(1000,1000)):
 
     '''Calulates bulk fluxes using METRIC model
 
@@ -123,7 +124,6 @@ def METRIC(Tr_K,
     '''
 
     # Convert input scalars to numpy arrays and check parameters size
-    Tr_K = Tr_K
     (T_A_K,
      u,
      ea,
@@ -137,7 +137,7 @@ def METRIC(Tr_K,
      z_T,
      LE_cold,
      LE_hot,
-     calcG_array) = map(tseb._check_default_parameter_size,
+     calcG_array) = map(lambda x,y: tseb._check_default_parameter_size(x, y, chunks=chunks),
                         [T_A_K,
                          u,
                          ea,
@@ -155,15 +155,15 @@ def METRIC(Tr_K,
                         [Tr_K] * 14)
 
     # Create the output variables
-    [Ln, LE, H, G, R_A, iterations] = [np.zeros(Tr_K.shape)+np.NaN for i in range(6)]
-    flag = np.zeros(Tr_K.shape, dtype=np.byte)
+    [Ln, LE, H, G, R_A, iterations] = [da.zeros(Tr_K.shape, chunks = chunks)+np.NaN for i in range(6)]
+    flag = da.zeros(Tr_K.shape, dtype=np.byte, chunks = chunks)
     # iteration of the Monin-Obukhov length
     if isinstance(UseL, bool):
         # Initially assume stable atmospheric conditions and set variables for
-        L = np.zeros(Tr_K.shape) + np.inf
+        L = da.zeros(Tr_K.shape, chunks = chunks) + np.inf
         max_iterations = ITERATIONS
     else:  # We force Monin-Obukhov lenght to the provided array/value
-        L = np.ones(Tr_K.shape) * UseL
+        L = da.ones(Tr_K.shape, chunks = chunks) * UseL
         max_iterations = 1  # No iteration
 
     if isinstance(UseDEM, bool):
@@ -190,23 +190,22 @@ def METRIC(Tr_K,
     Rn = Sn + Ln
 
     # Compute Soil Heat Flux
-    i = np.ones(Rn.shape, dtype=bool)
-    G[i] = tseb.calc_G([calcG_params[0], calcG_array], Rn, i)
+    G = tseb.calc_G([calcG_params[0], calcG_array], Rn)
 
     # Get cold and hot variables
-    Rn_endmembers = np.array([Rn[cold_pixel], Rn[hot_pixel]])
-    G_endmembers = np.array([G[cold_pixel], G[hot_pixel]])
-    LE_endmembers = np.array([LE_cold[cold_pixel], LE_hot[hot_pixel]])
-    u_friction_endmembers = np.array([u_friction[cold_pixel], u_friction[hot_pixel]])
-    u_endmembers = np.array([u[cold_pixel], u[hot_pixel]])
-    z_u_endmembers = np.array([z_u[cold_pixel], z_u[hot_pixel]])
-    Ta_datum_endmembers = np.array([Ta_datum[cold_pixel], Ta_datum[hot_pixel]])
-    z_T_endmembers = np.array([z_T[cold_pixel], z_T[hot_pixel]])
-    rho_datum_endmembers = np.array([rho_datum[cold_pixel], rho_datum[hot_pixel]])
-    c_p_endmembers = np.array([c_p[cold_pixel], c_p[hot_pixel]])
-    d_0_endmembers = np.array([d_0[cold_pixel], d_0[hot_pixel]])
-    z_0M_endmembers = np.array([z_0M[cold_pixel], z_0M[hot_pixel]])
-    z_0H_endmembers = np.array([z_0H[cold_pixel], z_0H[hot_pixel]])
+    Rn_endmembers = da.asarray([Rn[cold_pixel], Rn[hot_pixel]])
+    G_endmembers = da.asarray([G[cold_pixel], G[hot_pixel]])
+    LE_endmembers = da.asarray([LE_cold[cold_pixel], LE_hot[hot_pixel]])
+    u_friction_endmembers = da.asarray([u_friction[cold_pixel], u_friction[hot_pixel]])
+    u_endmembers = da.asarray([u[cold_pixel], u[hot_pixel]])
+    z_u_endmembers = da.asarray([z_u[cold_pixel], z_u[hot_pixel]])
+    Ta_datum_endmembers = da.asarray([Ta_datum[cold_pixel], Ta_datum[hot_pixel]])
+    z_T_endmembers = da.asarray([z_T[cold_pixel], z_T[hot_pixel]])
+    rho_datum_endmembers = da.asarray([rho_datum[cold_pixel], rho_datum[hot_pixel]])
+    c_p_endmembers = da.asarray([c_p[cold_pixel], c_p[hot_pixel]])
+    d_0_endmembers = da.asarray([d_0[cold_pixel], d_0[hot_pixel]])
+    z_0M_endmembers = da.asarray([z_0M[cold_pixel], z_0M[hot_pixel]])
+    z_0H_endmembers = da.asarray([z_0H[cold_pixel], z_0H[hot_pixel]])
 
     H_endmembers = calc_H_residual(Rn_endmembers, G_endmembers, LE=LE_endmembers)
 
@@ -214,8 +213,8 @@ def METRIC(Tr_K,
     #     HOT and COLD PIXEL ITERATIONS FOR MONIN-OBUKHOV LENGTH TO CONVERGE
     # ==============================================================================
     # Initially assume stable atmospheric conditions and set variables for
-    L_old = np.ones(2)
-    L_diff = np.ones(2) * float('inf')
+    L_old = da.ones(2, chunks = (1))
+    L_diff = da.ones(2, chunks = (1)) * float('inf')
     for iteration in range(max_iterations):
         if np.all(L_diff < L_thres):
             break
@@ -275,10 +274,10 @@ def METRIC(Tr_K,
 #     ITERATIONS FOR MONIN-OBUKHOV LENGTH AND H TO CONVERGE
 # ==============================================================================
     # Initially assume stable atmospheric conditions and set variables for
-    L_queue = deque([np.ones(dT.shape)], 6)
-    L_converged = np.zeros(Tr_K.shape).astype(bool)
+    L_queue = deque([da.ones(dT.shape, chunks = chunks)], 6)
+    L_converged = da.zeros(Tr_K.shape, chunks = chunks, dtype=bool)
     L_diff_max = np.inf
-    i = np.ones(dT.shape, dtype=bool)
+    i = da.ones(dT.shape, dtype=bool, chunks = chunks)
     start_time = time.time()
     loop_time = time.time()
 
@@ -292,35 +291,35 @@ def METRIC(Tr_K,
         loop_time = current_time
         total_duration = loop_time - start_time
         print("Iteration: %d, non-converged pixels: %d, max L diff: %f, total time: %f, loop time: %f" %
-              (n_iterations, np.sum(~L_converged[i]), L_diff_max, total_duration, loop_duration))
+              (n_iterations, np.sum(~L_converged), L_diff_max, total_duration, loop_duration))
 
         i = ~L_converged
 
         if use_METRIC_resistance is True:
             R_A_params = {"z_T": np.array([2.0, 2.0]),
-                          "u_friction": u_friction[i],
-                          "L": L[i],
+                          "u_friction": u_friction.where(i),
+                          "L": L.where(i),
                           "d_0": np.array([0.0, 0.0]),
                           "z_0H": np.array([0.1, 0.1])}
         else:
-            R_A_params = {"z_T": z_T[i],
-                          "u_friction": u_friction[i],
-                          "L": L[i],
-                          "d_0": d_0[i],
-                          "z_0H": z_0H[i]}
+            R_A_params = {"z_T": z_T.where(i),
+                          "u_friction": u_friction.where(i),
+                          "L": L.where(i),
+                          "d_0": d_0.where(i),
+                          "z_0H": z_0H.where(i)}
 
             R_A[i], _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, {"R_A": R_A_params})
 
-        H[i] = calc_H(dT[i], rho[i], c_p[i], R_A[i])
-        LE[i] = Rn[i] - G[i] - H[i]
+        H[i] = calc_H(dT.where(i), rho.where(i), c_p.where(i), R_A.where(i))
+        LE[i] = Rn.where(i) - G.where(i) - H.where(i)
 
         if isinstance(UseL, bool):
             # Now L can be recalculated and the difference between iterations
             # derived
-            L[i] = MO.calc_L(u_friction[i], T_A_K[i], rho[i], c_p[i], H[i], LE[i])
+            L[i] = MO.calc_L(u_friction.where(i), T_A_K.where(i), rho.where(i), c_p.where(i), H.where(i), LE.where(i))
 
-            u_friction[i] = MO.calc_u_star(u[i], z_u[i], L[i], d_0[i], z_0M[i])
-            u_friction[i] = np.maximum(u_friction_min, u_friction[i])
+            u_friction[i] = MO.calc_u_star(u.where(i), z_u.where(i), L.where(i), d_0.where(i), z_0M.where(i))
+            u_friction[i] = np.maximum(u_friction_min, u_friction.where(i))
             
             # We check convergence against the value of L from previous iteration but as well
             # against values from 2 or 3 iterations back. This is to catch situations (not
@@ -329,17 +328,17 @@ def METRIC(Tr_K,
             L_new[L_new == 0] = 1e-36
             L_queue.appendleft(L_new)
             i = ~L_converged
-            L_converged[i] = _L_diff(L_queue[0][i], L_queue[1][i]) < L_thres
-            L_diff_max = np.max(_L_diff(L_queue[0][i], L_queue[1][i]))
+            L_converged[i] = _L_diff(L_queue[0].where(i), L_queue[1].where(i)) < L_thres
+            L_diff_max = np.max(_L_diff(L_queue[0].where(i), L_queue[1].where(i)))
             if len(L_queue) >= 4:
                 i = ~L_converged
-                L_converged[i] = np.logical_and(_L_diff(L_queue[0][i], L_queue[2][i]) < L_thres,
-                                                _L_diff(L_queue[1][i], L_queue[3][i]) < L_thres)
+                L_converged[i] = np.logical_and(_L_diff(L_queue[0].where(i), L_queue[2].where(i)) < L_thres,
+                                                _L_diff(L_queue[1].where(i), L_queue[3].where(i)) < L_thres)
             if len(L_queue) == 6:
                 i = ~L_converged
-                L_converged[i] = np.logical_and.reduce((_L_diff(L_queue[0][i], L_queue[3][i]) < L_thres,
-                                                        _L_diff(L_queue[1][i], L_queue[4][i]) < L_thres,
-                                                        _L_diff(L_queue[2][i], L_queue[5][i]) < L_thres))
+                L_converged[i] = np.logical_and.reduce((_L_diff(L_queue[0].where(i), L_queue[3].where(i)) < L_thres,
+                                                        _L_diff(L_queue[1].where(i), L_queue[4].where(i)) < L_thres,
+                                                        _L_diff(L_queue[2].where(i), L_queue[5].where(i)) < L_thres))
 
     return flag, Ln, LE, H, G, R_A, u_friction, L, iterations
 
