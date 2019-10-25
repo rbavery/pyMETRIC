@@ -297,48 +297,49 @@ def METRIC(Tr_K,
 
         if use_METRIC_resistance is True:
             R_A_params = {"z_T": np.array([2.0, 2.0]),
-                          "u_friction": u_friction.where(i),
-                          "L": L.where(i),
+                          "u_friction": da.where(i,u_friction,np.nan),
+                          "L": da.where(i, L,np.nan),
                           "d_0": np.array([0.0, 0.0]),
                           "z_0H": np.array([0.1, 0.1])}
         else:
-            R_A_params = {"z_T": z_T.where(i),
-                          "u_friction": u_friction.where(i),
-                          "L": L.where(i),
-                          "d_0": d_0.where(i),
-                          "z_0H": z_0H.where(i)}
+            R_A_params = {"z_T": da.where(i, z_T, np.nan),
+                          "u_friction": da.where(i, u_friction, np.nan),
+                          "L": da.where(i, L, np.nan),
+                          "d_0": da.where(i, d_0, np.nan),
+                          "z_0H": da.where(i, z_0H, np.nan)}
 
             R_A[i], _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, {"R_A": R_A_params})
 
-        H[i] = calc_H(dT.where(i), rho.where(i), c_p.where(i), R_A.where(i))
-        LE[i] = Rn.where(i) - G.where(i) - H.where(i)
+        H = calc_H(da.where(i, dT, np.nan), da.where(i,rho,np.nan), da.where(i,c_p,np.nan), da.where(i,R_A,np.nan))
+        LE = da.where(i,Rn,np.nan) - da.where(i,G,np.nan) - da.where(i,H,np.nan)
 
         if isinstance(UseL, bool):
             # Now L can be recalculated and the difference between iterations
             # derived
-            L[i] = MO.calc_L(u_friction.where(i), T_A_K.where(i), rho.where(i), c_p.where(i), H.where(i), LE.where(i))
+            # H and LE are all nan uh oh
+            L = MO.calc_L(da.where(i, u_friction, np.nan), da.where(i, T_A_K, np.nan), da.where(i, rho, np.nan), da.where(i, c_p, np.nan), da.where(i, H, np.nan), da.where(i, LE, np.nan))
 
-            u_friction[i] = MO.calc_u_star(u.where(i), z_u.where(i), L.where(i), d_0.where(i), z_0M.where(i))
-            u_friction[i] = np.maximum(u_friction_min, u_friction.where(i))
+            u_friction = MO.calc_u_star(da.where(i, u, np.nan), da.where(i, z_u, np.nan), da.where(i, L, np.nan), da.where(i, d_0, np.nan), da.where(i, z_0M, np.nan))
+            u_friction = np.maximum(u_friction_min, da.where(i, u_friction, np.nan))
             
             # We check convergence against the value of L from previous iteration but as well
             # against values from 2 or 3 iterations back. This is to catch situations (not
             # infrequent) where L oscillates between 2 or 3 steady state values.
-            L_new = np.array(L)
+            L_new = L
             L_new[L_new == 0] = 1e-36
             L_queue.appendleft(L_new)
             i = ~L_converged
-            L_converged[i] = _L_diff(L_queue[0].where(i), L_queue[1].where(i)) < L_thres
-            L_diff_max = np.max(_L_diff(L_queue[0].where(i), L_queue[1].where(i)))
+            L_converged[i] = _L_diff(da.where(i, L_queue[0], np.nan), da.where(i, L_queue[1], np.nan)) < L_thres
+            L_diff_max = np.max(_L_diff(da.where(i, L_queue[0], np.nan), da.where(i, L_queue[1], np.nan)))
             if len(L_queue) >= 4:
                 i = ~L_converged
-                L_converged[i] = np.logical_and(_L_diff(L_queue[0].where(i), L_queue[2].where(i)) < L_thres,
-                                                _L_diff(L_queue[1].where(i), L_queue[3].where(i)) < L_thres)
+                L_converged[i] = np.logical_and(_L_diff(da.where(i, L_queue[0], np.nan), da.where(i, L_queue[2], np.nan)) < L_thres,
+                                                _L_diff(da.where(i, L_queue[1], np.nan), da.where(i, L_queue[3], np.nan)) < L_thres)
             if len(L_queue) == 6:
                 i = ~L_converged
-                L_converged[i] = np.logical_and.reduce((_L_diff(L_queue[0].where(i), L_queue[3].where(i)) < L_thres,
-                                                        _L_diff(L_queue[1].where(i), L_queue[4].where(i)) < L_thres,
-                                                        _L_diff(L_queue[2].where(i), L_queue[5].where(i)) < L_thres))
+                L_converged[i] = np.logical_and.reduce((_L_diff(da.where(i, L_queue[0], np.nan), da.where(i, L_queue[3], np.nan)) < L_thres,
+                                                        _L_diff(da.where(i, L_queue[1], np.nan), da.where(i, L_queue[4], np.nan)) < L_thres,
+                                                        _L_diff(da.where(i, L_queue[2], np.nan), da.where(i, L_queue[5], np.nan)) < L_thres))
 
     return flag, Ln, LE, H, G, R_A, u_friction, L, iterations
 
